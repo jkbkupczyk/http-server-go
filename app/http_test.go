@@ -1,9 +1,59 @@
 package main
 
 import (
+	"io"
 	"strings"
 	"testing"
 )
+
+func TestReadRequestLine(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		source      io.Reader
+		wantMethod  string
+		wantTarget  string
+		wantVersion string
+	}{
+		{
+			desc:        "read simple request",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\n\r\n"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+		{
+			desc:        "read complex request",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nContent-Length: 123\r\n\r\n<html><body><p>Hello</p></body></html>"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+		{
+			desc:        "read request ",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			req, err := Read(tC.source)
+			if err != nil {
+				t.Fatalf("wanted no errors but read(io.Reader) returned error: %v", err)
+			}
+			if tC.wantMethod != req.Method {
+				t.Errorf("invalid method, wanted: '%s', got: '%s'", tC.wantMethod, req.Method)
+			}
+			if tC.wantTarget != req.Target {
+				t.Errorf("invalid target, wanted: '%s', got: '%s'", tC.wantTarget, req.Target)
+			}
+			if tC.wantVersion != req.Version {
+				t.Errorf("invalid version, wanted: '%s', got: '%s'", tC.wantVersion, req.Version)
+			}
+		})
+	}
+}
 
 func TestWrite(t *testing.T) {
 	testCases := []struct {

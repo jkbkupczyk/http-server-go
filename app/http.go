@@ -1,17 +1,79 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"strings"
+)
+
+var (
+	ErrCannotReadRequestLine = errors.New("http: cannot read request line")
+	ErrInvalidRequestLine    = errors.New("http: invalid request line")
+	ErrCannotReadHeaders     = errors.New("http: cannot read headers")
 )
 
 type HttpHeaders map[string]string
+
+type HttpRequest struct {
+	Method  string
+	Target  string
+	Version string
+	Headers HttpHeaders
+	Body    io.Reader
+}
 
 type HttpResponse struct {
 	Version string
 	Status  int
 	Headers HttpHeaders
 	Body    io.Reader
+}
+
+func Read(r io.Reader) (*HttpRequest, error) {
+	br := newBufferedReader(r)
+
+	req := &HttpRequest{}
+
+	line, err := br.ReadString('\n')
+	if err != nil {
+		return req, errors.Join(ErrCannotReadRequestLine, err)
+	}
+
+	tokens := strings.SplitN(line, " ", 3)
+	if len(tokens) < 3 {
+		return nil, ErrInvalidRequestLine
+	}
+
+	// Status line
+	req.Method = strings.TrimSpace(tokens[0])
+	req.Target = strings.TrimSpace(tokens[1])
+	req.Version = strings.TrimSpace(tokens[2])
+
+	// Headers
+	headers := make(map[string]string)
+	for {
+		hdrLine, err := br.ReadString('\n')
+		if err != nil {
+			return nil, errors.Join(ErrCannotReadHeaders, err)
+		}
+
+		hdrLine = strings.TrimSpace(hdrLine)
+		if hdrLine == "" {
+			break
+		}
+
+		headerValues := strings.Split(hdrLine, ":")
+		key := strings.TrimSpace(headerValues[0])
+		value := strings.TrimSpace(headerValues[1])
+
+		headers[key] = value
+	}
+
+	// Body
+	req.Body = r
+
+	return req, nil
 }
 
 func Write(w io.Writer, res HttpResponse) (int64, error) {

@@ -21,10 +21,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	req, err := Read(conn)
+	if err != nil {
+		fmt.Println("Error reading request: ", err.Error())
+		os.Exit(1)
+	}
+
 	res := HttpResponse{
 		Version: "HTTP/1.1",
-		Status:  200,
-		Headers: nil,
+		Status:  404,
+		Headers: HttpHeaders{},
+	}
+
+	if req.Target == "/" {
+		res.Status = 200
+	} else {
+		res.Status = 404
 	}
 
 	n, err := Write(conn, res)
