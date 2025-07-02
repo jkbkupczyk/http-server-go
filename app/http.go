@@ -33,7 +33,9 @@ type HttpResponse struct {
 func Read(r io.Reader) (*HttpRequest, error) {
 	br := newBufferedReader(r)
 
-	req := &HttpRequest{}
+	req := &HttpRequest{
+		Headers: HttpHeaders{},
+	}
 
 	line, err := br.ReadString('\n')
 	if err != nil {

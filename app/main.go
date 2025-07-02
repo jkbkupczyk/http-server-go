@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 )
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
+	port := 4221
 
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
+		fmt.Printf("Failed to bind to port %d\n", port)
 		os.Exit(1)
 	}
 
@@ -35,6 +38,15 @@ func main() {
 
 	if req.Target == "/" {
 		res.Status = 200
+	} else if strings.HasPrefix(req.Target, "/echo/") {
+		res.Status = 200
+		echo, ok := strings.CutPrefix(req.Target, "/echo/")
+		if !ok {
+			echo = ""
+		}
+		res.Body = strings.NewReader(echo)
+		res.Headers["Content-Type"] = "text/plain"
+		res.Headers["Content-Length"] = strconv.Itoa(len(echo))
 	} else {
 		res.Status = 404
 	}
