@@ -47,6 +47,12 @@ func main() {
 		res.Body = strings.NewReader(echo)
 		res.Headers["Content-Type"] = "text/plain"
 		res.Headers["Content-Length"] = strconv.Itoa(len(echo))
+	} else if strings.HasPrefix(req.Target, "/user-agent") {
+		res.Status = 200
+		body := req.Headers["User-Agent"]
+		res.Body = strings.NewReader(body)
+		res.Headers["Content-Type"] = "text/plain"
+		res.Headers["Content-Length"] = strconv.Itoa(len(body))
 	} else {
 		res.Status = 404
 	}
