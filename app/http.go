@@ -33,13 +33,11 @@ type HttpResponse struct {
 func Read(r io.Reader) (*HttpRequest, error) {
 	br := newBufferedReader(r)
 
-	req := &HttpRequest{
-		Headers: HttpHeaders{},
-	}
+	req := &HttpRequest{}
 
 	line, err := br.ReadString('\n')
 	if err != nil {
-		return req, errors.Join(ErrCannotReadRequestLine, err)
+		return nil, errors.Join(ErrCannotReadRequestLine, err)
 	}
 
 	tokens := strings.SplitN(line, " ", 3)
@@ -65,12 +63,13 @@ func Read(r io.Reader) (*HttpRequest, error) {
 			break
 		}
 
-		headerValues := strings.Split(hdrLine, ":")
+		headerValues := strings.SplitN(hdrLine, ":", 2)
 		key := strings.TrimSpace(headerValues[0])
 		value := strings.TrimSpace(headerValues[1])
 
 		headers[key] = value
 	}
+	req.Headers = headers
 
 	// Body
 	req.Body = r

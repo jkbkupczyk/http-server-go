@@ -6,6 +6,53 @@ import (
 	"testing"
 )
 
+func TestReadHeaders(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		source      io.Reader
+		wantHeaders HttpHeaders
+	}{
+		{
+			desc:        "read http request - no headers",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\n\r\n"),
+			wantHeaders: HttpHeaders{},
+		},
+		{
+			desc:   "read http request - 1 header",
+			source: strings.NewReader("GET /index.html HTTP/1.1\r\nUser-Agent: foobar/1.2.3\r\n\r\n"),
+			wantHeaders: HttpHeaders{
+				"User-Agent": "foobar/1.2.3",
+			},
+		},
+		{
+			desc:   "read http request - 2 headers",
+			source: strings.NewReader("GET /index.html HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\n\r\n"),
+			wantHeaders: HttpHeaders{
+				"Host":       "localhost:4221",
+				"User-Agent": "curl/7.64.1",
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			req, err := Read(tC.source)
+			if err != nil {
+				t.Fatalf("wanted no errors but read(io.Reader) returned error: %v", err)
+			}
+
+			if req.Headers == nil {
+				t.Fatalf("wanted HttpRequest::Headers to not be nil")
+			}
+
+			for wantKey, wantValue := range tC.wantHeaders {
+				if gotValue := req.Headers[wantKey]; gotValue != wantValue {
+					t.Errorf("wanted header[%s] value to be: '%s', but got '%s'", wantKey, wantValue, gotValue)
+				}
+			}
+		})
+	}
+}
+
 func TestReadRequestLine(t *testing.T) {
 	testCases := []struct {
 		desc        string
@@ -15,21 +62,21 @@ func TestReadRequestLine(t *testing.T) {
 		wantVersion string
 	}{
 		{
-			desc:        "read simple request",
+			desc:        "read http request - simple request",
 			source:      strings.NewReader("GET /index.html HTTP/1.1\r\n\r\n"),
 			wantMethod:  "GET",
 			wantTarget:  "/index.html",
 			wantVersion: "HTTP/1.1",
 		},
 		{
-			desc:        "read complex request",
+			desc:        "read http request - complex request",
 			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nContent-Length: 123\r\n\r\n<html><body><p>Hello</p></body></html>"),
 			wantMethod:  "GET",
 			wantTarget:  "/index.html",
 			wantVersion: "HTTP/1.1",
 		},
 		{
-			desc:        "read request ",
+			desc:        "read http request - full request",
 			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n"),
 			wantMethod:  "GET",
 			wantTarget:  "/index.html",
