@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -23,11 +26,14 @@ type HttpRequest struct {
 	Body    io.Reader
 }
 
+type BodyLengthFunc func() int
+
 type HttpResponse struct {
-	Version string
-	Status  int
-	Headers HttpHeaders
-	Body    io.Reader
+	Version    string
+	Status     int
+	Headers    HttpHeaders
+	Body       io.Reader
+	BodyLength BodyLengthFunc
 }
 
 func Read(r io.Reader) (*HttpRequest, error) {
@@ -90,8 +96,12 @@ func Write(w io.Writer, res HttpResponse) (int64, error) {
 
 	// Headers
 	if res.Headers != nil {
-		for k, v := range res.Headers {
-			nn, err := fmt.Fprintf(bw, "%s: %s\r\n", k, v)
+		if res.BodyLength != nil {
+			res.Headers["Content-Length"] = strconv.Itoa(res.BodyLength())
+		}
+		// Write headers in alphabetical order
+		for _, k := range slices.Sorted(maps.Keys(res.Headers)) {
+			nn, err := fmt.Fprintf(bw, "%s: %s\r\n", k, res.Headers[k])
 			total += int64(nn)
 			if err != nil {
 				return total, err
