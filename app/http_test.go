@@ -143,7 +143,7 @@ func TestWrite(t *testing.T) {
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
 			var sb strings.Builder
-			_, err := Write(&sb, tC.res)
+			_, err := Write(&sb, &tC.res)
 			if err != nil {
 				t.Fatalf("wanted no errors but write(HttpResponse) returned error: %v", err)
 			}

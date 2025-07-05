@@ -83,7 +83,7 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	return req, nil
 }
 
-func Write(w io.Writer, res HttpResponse) (int64, error) {
+func Write(w io.Writer, res *HttpResponse) (int64, error) {
 	bw := newBufferedWriter(w)
 	total := int64(0)
 
@@ -139,5 +139,13 @@ func statusString(code int) string {
 		return "Internal Server Error"
 	default:
 		return ""
+	}
+}
+
+func newCleanResponse() *HttpResponse {
+	return &HttpResponse{
+		Version: "HTTP/1.1",
+		Status:  200,
+		Headers: HttpHeaders{},
 	}
 }
