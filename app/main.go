@@ -58,8 +58,8 @@ func handleConn(cfg Config, conn net.Conn) {
 		return
 	}
 
-	res, err := Handle(cfg, newCleanResponse(), req)
-	if err != nil {
+	res := newCleanResponse()
+	if err := Handle(cfg, res, req); err != nil {
 		fmt.Println("Error handling request: ", err.Error())
 		return
 	}
@@ -73,7 +73,7 @@ func handleConn(cfg Config, conn net.Conn) {
 	return
 }
 
-func Handle(cfg Config, res *HttpResponse, req *HttpRequest) (*HttpResponse, error) {
+func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 	if req.Target == "/" {
 		res.Status = StatusOK
 	} else if strings.HasPrefix(req.Target, "/echo/") {
@@ -92,7 +92,7 @@ func Handle(cfg Config, res *HttpResponse, req *HttpRequest) (*HttpResponse, err
 	} else {
 		res.Status = StatusNotFound
 	}
-	return res, nil
+	return nil
 }
 
 func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
