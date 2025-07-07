@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -59,6 +60,7 @@ func handleConn(cfg Config, conn net.Conn) {
 
 	res, err := Handle(cfg, newCleanResponse(), req)
 	if err != nil {
+		fmt.Println("Error handling request: ", err.Error())
 		return
 	}
 
@@ -73,46 +75,76 @@ func handleConn(cfg Config, conn net.Conn) {
 
 func Handle(cfg Config, res *HttpResponse, req *HttpRequest) (*HttpResponse, error) {
 	if req.Target == "/" {
-		res.Status = 200
+		res.Status = StatusOK
 	} else if strings.HasPrefix(req.Target, "/echo/") {
-		res.Status = 200
+		res.Status = StatusOK
 		echo, _ := strings.CutPrefix(req.Target, "/echo/")
-		res.Body = strings.NewReader(echo)
-		res.BodyLength = func() int { return len(echo) }
-		res.Headers["Content-Type"] = "text/plain"
+		res.WriteStr(echo)
 	} else if strings.HasPrefix(req.Target, "/user-agent") {
-		res.Status = 200
-		body := req.Headers["User-Agent"]
-		res.Body = strings.NewReader(body)
-		res.BodyLength = func() int { return len(body) }
-		res.Headers["Content-Type"] = "text/plain"
+		res.Status = StatusOK
+		res.WriteStr(req.Headers["User-Agent"])
 	} else if strings.HasPrefix(req.Target, "/files/") {
-		res.Status = 200
-		fileName, _ := strings.CutPrefix(req.Target, "/files/")
-		f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				res.Status = 404
-				return res, nil
-			} else {
-				resp := fmt.Sprintf("Could not load file: %s", err.Error())
-				res.Body = strings.NewReader(resp)
-				res.BodyLength = func() int { return len(resp) }
-				res.Headers["Content-Type"] = "text/plain"
-			}
+		if req.Method == MethodPost {
+			createFileHandler(cfg, res, req)
 		} else {
-			res.Body = f
-			res.BodyLength = func() int {
-				stat, err := f.Stat()
-				if err != nil {
-					return 0
-				}
-				return int(stat.Size())
-			}
-			res.Headers["Content-Type"] = "application/octet-stream"
+			listFilesHandler(cfg, res, req)
 		}
 	} else {
-		res.Status = 404
+		res.Status = StatusNotFound
 	}
 	return res, nil
+}
+
+func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+	fileName, _ := strings.CutPrefix(req.Target, "/files/")
+
+	sb := new(strings.Builder)
+	_, err := io.Copy(sb, req.Body)
+	if err != nil {
+		res.Status = StatusInternalServerError
+		res.WriteStr("Could not read input: " + err.Error())
+		return
+	}
+
+	f, err := os.Create(filepath.Join(cfg.FileDir, fileName))
+	if err != nil {
+		res.Status = StatusInternalServerError
+		res.WriteStr("Could not create file: " + err.Error())
+		return
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(sb.String())
+	if err != nil {
+		res.Status = StatusInternalServerError
+		res.WriteStr("Could not write data to file: " + err.Error())
+		return
+	}
+
+	res.Status = StatusCreated
+}
+
+func listFilesHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+	res.Status = StatusOK
+	fileName, _ := strings.CutPrefix(req.Target, "/files/")
+	f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			res.Status = StatusNotFound
+			return
+		}
+		resp := fmt.Sprintf("Could not load file: %s", err.Error())
+		res.WriteStr(resp)
+		return
+	}
+
+	res.Body = f
+	res.BodyLength = func() int {
+		stat, err := f.Stat()
+		if err != nil {
+			return 0
+		}
+		return int(stat.Size())
+	}
+	res.Headers["Content-Type"] = "application/octet-stream"
 }

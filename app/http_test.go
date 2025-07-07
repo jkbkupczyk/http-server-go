@@ -153,3 +153,73 @@ func TestWrite(t *testing.T) {
 		})
 	}
 }
+
+func TestResponseWriteStr(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		str         string
+		wantBody    string
+		wantBodyLen int
+	}{
+		{
+			desc:        "write empty string",
+			str:         "",
+			wantBody:    "",
+			wantBodyLen: 0,
+		},
+		{
+			desc:        "write blank string",
+			str:         " \t   \b ",
+			wantBody:    " \t   \b ",
+			wantBodyLen: 7,
+		},
+		{
+			desc:        "write non empty string",
+			str:         "Hello, World!",
+			wantBody:    "Hello, World!",
+			wantBodyLen: 13,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			res := &HttpResponse{
+				Version: "HTTP/1.1",
+				Status:  200,
+			}
+
+			res = res.WriteStr(tC.str)
+
+			if res.Headers["Content-Type"] != "text/plain" {
+				t.Errorf("missing or invalid 'Content-Type' header value, wanted: 'text/plain', got: '%s'", res.Headers["Content-Type"])
+			}
+			if l := res.BodyLength(); l != tC.wantBodyLen {
+				t.Errorf("invalid body length ('Content-Length'), wanted: '%d', got: '%d'", tC.wantBodyLen, l)
+			}
+			sb := new(strings.Builder)
+			io.Copy(sb, res.Body)
+			if s := sb.String(); s != tC.wantBody {
+				t.Errorf("invalid body contents, wanted: '%s', got: '%s'", tC.wantBody, s)
+			}
+		})
+	}
+}
+
+func TestNewCleanResponse(t *testing.T) {
+	cr := newCleanResponse()
+
+	if cr.Version != "HTTP/1.1" {
+		t.Errorf("wanted Version to be 'HTTP/1.1' but got: %s", cr.Version)
+	}
+	if cr.Status != StatusOK {
+		t.Errorf("wanted Status to be OK but got: %d", cr.Status)
+	}
+	if cr.Headers == nil {
+		t.Errorf("wanted Headers to not be nil but got: %s", cr.Headers)
+	}
+	if cr.Body != nil {
+		t.Errorf("wanted Body to be nil but got non-nil value")
+	}
+	if cr.BodyLength != nil {
+		t.Errorf("wanted BodyLength to be nil but got non-nil value")
+	}
+}

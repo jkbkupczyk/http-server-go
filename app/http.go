@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+const (
+	StatusOK                  = 200
+	StatusCreated             = 201
+	StatusBadRequest          = 400
+	StatusNotFound            = 404
+	StatusInternalServerError = 500
+)
+
+const (
+	MethodPost = "POST"
+)
+
 var (
 	ErrCannotReadRequestLine = errors.New("http: cannot read request line")
 	ErrInvalidRequestLine    = errors.New("http: invalid request line")
@@ -129,13 +141,15 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 
 func statusString(code int) string {
 	switch code {
-	case 200:
+	case StatusOK:
 		return "OK"
-	case 400:
+	case StatusCreated:
+		return "Created"
+	case StatusBadRequest:
 		return "Bad Request"
-	case 404:
+	case StatusNotFound:
 		return "Not Found"
-	case 500:
+	case StatusInternalServerError:
 		return "Internal Server Error"
 	default:
 		return ""
@@ -148,4 +162,14 @@ func newCleanResponse() *HttpResponse {
 		Status:  200,
 		Headers: HttpHeaders{},
 	}
+}
+
+func (r *HttpResponse) WriteStr(str string) *HttpResponse {
+	r.Body = strings.NewReader(str)
+	r.BodyLength = func() int { return len(str) }
+	if r.Headers == nil {
+		r.Headers = HttpHeaders{}
+	}
+	r.Headers["Content-Type"] = "text/plain"
+	return r
 }
