@@ -64,6 +64,7 @@ func handleConn(cfg Config, conn net.Conn) {
 		return
 	}
 
+	fmt.Printf("Response after handle: %+v", res)
 	n, err := Write(conn, res)
 	if err != nil {
 		fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
@@ -139,12 +140,12 @@ func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	}
 
 	res.Body = f
-	res.BodyLength = func() int {
+	res.BodyLength = func() int64 {
 		stat, err := f.Stat()
 		if err != nil {
 			return 0
 		}
-		return int(stat.Size())
+		return stat.Size()
 	}
 	res.Headers["Content-Type"] = "application/octet-stream"
 }

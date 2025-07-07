@@ -38,7 +38,7 @@ type HttpRequest struct {
 	Body    io.Reader
 }
 
-type BodyLengthFunc func() int
+type BodyLengthFunc func() int64
 
 type HttpResponse struct {
 	Version    string
@@ -96,8 +96,6 @@ func Read(r io.Reader) (*HttpRequest, error) {
 }
 
 func Write(w io.Writer, res *HttpResponse) (int64, error) {
-	fmt.Printf("Writing response: %+v", res)
-
 	bw := newBufferedWriter(w)
 	total := int64(0)
 
@@ -111,7 +109,7 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 	// Headers
 	if res.Headers != nil {
 		if res.BodyLength != nil {
-			res.Headers["Content-Length"] = strconv.Itoa(res.BodyLength())
+			res.Headers["Content-Length"] = strconv.FormatInt(res.BodyLength(), 10)
 		}
 		// Write headers in alphabetical order
 		for _, k := range slices.Sorted(maps.Keys(res.Headers)) {
@@ -168,7 +166,7 @@ func newCleanResponse() *HttpResponse {
 
 func (r *HttpResponse) WriteStr(str string) *HttpResponse {
 	r.Body = strings.NewReader(str)
-	r.BodyLength = func() int { return len(str) }
+	r.BodyLength = func() int64 { return int64(len(str)) }
 	if r.Headers == nil {
 		r.Headers = HttpHeaders{}
 	}

@@ -159,7 +159,7 @@ func TestResponseWriteStr(t *testing.T) {
 		desc        string
 		str         string
 		wantBody    string
-		wantBodyLen int
+		wantBodyLen int64
 	}{
 		{
 			desc:        "write empty string",
