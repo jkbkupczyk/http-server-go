@@ -87,7 +87,7 @@ func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 		if req.Method == MethodPost {
 			createFileHandler(cfg, res, req)
 		} else {
-			listFilesHandler(cfg, res, req)
+			readFileHandler(cfg, res, req)
 		}
 	} else {
 		res.Status = StatusNotFound
@@ -124,7 +124,7 @@ func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	res.Status = StatusCreated
 }
 
-func listFilesHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	res.Status = StatusOK
 	fileName, _ := strings.CutPrefix(req.Target, "/files/")
 	f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
