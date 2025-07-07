@@ -96,6 +96,8 @@ func Read(r io.Reader) (*HttpRequest, error) {
 }
 
 func Write(w io.Writer, res *HttpResponse) (int64, error) {
+	fmt.Printf("Writing response: %+v", res)
+
 	bw := newBufferedWriter(w)
 	total := int64(0)
 
