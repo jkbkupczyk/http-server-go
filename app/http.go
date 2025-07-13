@@ -22,6 +22,11 @@ const (
 	MethodPost = "POST"
 )
 
+const (
+	HeaderContentLength = "Content-Length"
+	HeaderContentType = "Content-Type"
+)
+
 var (
 	ErrCannotReadRequestLine = errors.New("http: cannot read request line")
 	ErrInvalidRequestLine    = errors.New("http: invalid request line")
@@ -109,7 +114,7 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 	// Headers
 	if res.Headers != nil {
 		if res.BodyLength != nil {
-			res.Headers["Content-Length"] = strconv.FormatInt(res.BodyLength(), 10)
+			res.Headers[HeaderContentLength] = strconv.FormatInt(res.BodyLength(), 10)
 		}
 		// Write headers in alphabetical order
 		for _, k := range slices.Sorted(maps.Keys(res.Headers)) {
@@ -170,6 +175,6 @@ func (r *HttpResponse) WriteStr(str string) *HttpResponse {
 	if r.Headers == nil {
 		r.Headers = HttpHeaders{}
 	}
-	r.Headers["Content-Type"] = "text/plain"
+	r.Headers[HeaderContentType] = "text/plain"
 	return r
 }

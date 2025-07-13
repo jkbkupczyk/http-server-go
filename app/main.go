@@ -147,5 +147,5 @@ func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 		}
 		return stat.Size()
 	}
-	res.Headers["Content-Type"] = "application/octet-stream"
+	res.Headers[HeaderContentType] = "application/octet-stream"
 }
