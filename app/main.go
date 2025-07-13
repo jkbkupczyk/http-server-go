@@ -60,11 +60,13 @@ func handleConn(cfg Config, conn net.Conn) {
 	}
 	fmt.Printf("after read: %+v\n", req)
 
+	fmt.Printf("before handle\n")
 	res := newCleanResponse()
 	if err := Handle(cfg, res, req); err != nil {
 		fmt.Println("Error handling request: ", err.Error())
 		return
 	}
+	fmt.Printf("after handle: res: %+v, req: %+v\n", res, req)
 
 	n, err := Write(conn, res)
 	if err != nil {
