@@ -52,11 +52,13 @@ func main() {
 func handleConn(cfg Config, conn net.Conn) {
 	defer conn.Close()
 
+	fmt.Printf("before read\n")
 	req, err := Read(conn)
 	if err != nil {
 		fmt.Println("Error reading request: ", err.Error())
 		return
 	}
+	fmt.Printf("after read: %+v\n", req)
 
 	res := newCleanResponse()
 	if err := Handle(cfg, res, req); err != nil {
@@ -64,7 +66,6 @@ func handleConn(cfg Config, conn net.Conn) {
 		return
 	}
 
-	fmt.Printf("Response after handle: %+v", res)
 	n, err := Write(conn, res)
 	if err != nil {
 		fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
