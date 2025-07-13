@@ -19,18 +19,28 @@ const (
 )
 
 const (
-	MethodPost = "POST"
+	MethodGet     = "GET"
+	MethodHead    = "HEAD"
+	MethodPost    = "POST"
+	MethodPut     = "PUT"
+	MethodDelete  = "DELETE"
+	MethodConnect = "CONNECT"
+	MethodOptions = "OPTIONS"
+	MethodTrace   = "TRACE"
+	MethodPatch   = "PATCH"
 )
 
 const (
 	HeaderContentLength = "Content-Length"
-	HeaderContentType = "Content-Type"
+	HeaderContentType   = "Content-Type"
 )
 
 var (
 	ErrCannotReadRequestLine = errors.New("http: cannot read request line")
 	ErrInvalidRequestLine    = errors.New("http: invalid request line")
 	ErrCannotReadHeaders     = errors.New("http: cannot read headers")
+	ErrUnsupportedMethod     = errors.New("http: unsupported method")
+	ErrUnsupportedVersion    = errors.New("http: unsupported version")
 )
 
 type HttpHeaders map[string]string
@@ -53,6 +63,30 @@ type HttpResponse struct {
 	BodyLength BodyLengthFunc
 }
 
+func (req HttpRequest) GetContentLength() int64 {
+	cl, ok := req.Headers[HeaderContentLength]
+	if !ok {
+		return 0
+	}
+
+	contentLen, err := strconv.ParseInt(cl, 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	return contentLen
+}
+
+func (r *HttpResponse) WriteStr(str string) *HttpResponse {
+	r.Body = strings.NewReader(str)
+	r.BodyLength = func() int64 { return int64(len(str)) }
+	if r.Headers == nil {
+		r.Headers = HttpHeaders{}
+	}
+	r.Headers[HeaderContentType] = "text/plain"
+	return r
+}
+
 func Read(r io.Reader) (*HttpRequest, error) {
 	br := newBufferedReader(r)
 
@@ -62,16 +96,25 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	if err != nil {
 		return nil, errors.Join(ErrCannotReadRequestLine, err)
 	}
+	line = strings.TrimRight(line, "\r\n")
 
-	tokens := strings.SplitN(line, " ", 3)
-	if len(tokens) < 3 {
+	tokens := strings.Fields(line)
+	if len(tokens) != 3 {
 		return nil, ErrInvalidRequestLine
 	}
 
 	// Status line
-	req.Method = strings.TrimSpace(tokens[0])
+	method, version := strings.ToUpper(strings.TrimSpace(tokens[0])), strings.TrimSpace(tokens[2])
+	if !methodIsValid(method) {
+		return nil, errors.Join(ErrUnsupportedMethod, err)
+	}
+	if version == "" {
+		return nil, errors.Join(ErrUnsupportedVersion, err)
+	}
+
+	req.Method = method
 	req.Target = strings.TrimSpace(tokens[1])
-	req.Version = strings.TrimSpace(tokens[2])
+	req.Version = version
 
 	// Headers
 	headers := make(map[string]string)
@@ -95,7 +138,7 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	req.Headers = headers
 
 	// Body
-	req.Body = r
+	req.Body = br
 
 	return req, nil
 }
@@ -161,20 +204,21 @@ func statusString(code int) string {
 	}
 }
 
+func methodIsValid(method string) bool {
+	switch method {
+	case MethodGet, MethodHead, MethodPost,
+		MethodPut, MethodDelete, MethodConnect,
+		MethodOptions, MethodTrace, MethodPatch:
+		return true
+	default:
+		return false
+	}
+}
+
 func newCleanResponse() *HttpResponse {
 	return &HttpResponse{
 		Version: "HTTP/1.1",
 		Status:  200,
 		Headers: HttpHeaders{},
 	}
-}
-
-func (r *HttpResponse) WriteStr(str string) *HttpResponse {
-	r.Body = strings.NewReader(str)
-	r.BodyLength = func() int64 { return int64(len(str)) }
-	if r.Headers == nil {
-		r.Headers = HttpHeaders{}
-	}
-	r.Headers[HeaderContentType] = "text/plain"
-	return r
 }

@@ -6,6 +6,62 @@ import (
 	"testing"
 )
 
+func TestReadRequestLine(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		source      io.Reader
+		wantMethod  string
+		wantTarget  string
+		wantVersion string
+	}{
+		{
+			desc:        "read http request - simple request",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\n\r\n"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+		{
+			desc:        "read http request - complex request",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nContent-Length: 123\r\n\r\n<html><body><p>Hello</p></body></html>"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+		{
+			desc:        "read http request - full request",
+			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n"),
+			wantMethod:  "GET",
+			wantTarget:  "/index.html",
+			wantVersion: "HTTP/1.1",
+		},
+		{
+			desc:        "read http request - codescrafters stage 8",
+			source:      strings.NewReader("POST /files/raspberry_grape_strawberry_banana HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/8.2.1\r\nAccept: */*\r\nContent-Length: 63\r\nContent-Type: application/octet-stream\r\n\r\nblueberry grape blueberry pear banana raspberry mango raspberry"),
+			wantMethod:  "POST",
+			wantTarget:  "/files/raspberry_grape_strawberry_banana",
+			wantVersion: "HTTP/1.1",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			req, err := Read(tC.source)
+			if err != nil {
+				t.Fatalf("wanted no errors but read(io.Reader) returned error: %v", err)
+			}
+			if tC.wantMethod != req.Method {
+				t.Errorf("invalid method, wanted: '%s', got: '%s'", tC.wantMethod, req.Method)
+			}
+			if tC.wantTarget != req.Target {
+				t.Errorf("invalid target, wanted: '%s', got: '%s'", tC.wantTarget, req.Target)
+			}
+			if tC.wantVersion != req.Version {
+				t.Errorf("invalid version, wanted: '%s', got: '%s'", tC.wantVersion, req.Version)
+			}
+		})
+	}
+}
+
 func TestReadHeaders(t *testing.T) {
 	testCases := []struct {
 		desc        string
@@ -53,34 +109,27 @@ func TestReadHeaders(t *testing.T) {
 	}
 }
 
-func TestReadRequestLine(t *testing.T) {
+func TestReadBody(t *testing.T) {
+	const requestBase = "GET /index.html HTTP/1.1\r\nContent-Type: application/octet-stream\r\n\r\n"
 	testCases := []struct {
-		desc        string
-		source      io.Reader
-		wantMethod  string
-		wantTarget  string
-		wantVersion string
+		desc     string
+		source   io.Reader
+		wantBody []byte
 	}{
 		{
-			desc:        "read http request - simple request",
-			source:      strings.NewReader("GET /index.html HTTP/1.1\r\n\r\n"),
-			wantMethod:  "GET",
-			wantTarget:  "/index.html",
-			wantVersion: "HTTP/1.1",
+			desc:     "empty body",
+			source:   strings.NewReader(requestBase + ""),
+			wantBody: []byte{},
 		},
 		{
-			desc:        "read http request - complex request",
-			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nContent-Length: 123\r\n\r\n<html><body><p>Hello</p></body></html>"),
-			wantMethod:  "GET",
-			wantTarget:  "/index.html",
-			wantVersion: "HTTP/1.1",
+			desc:     "blank body",
+			source:   strings.NewReader(requestBase + "   \r\n\r\n\r\n   \t"),
+			wantBody: []byte("   \r\n\r\n\r\n   \t"),
 		},
 		{
-			desc:        "read http request - full request",
-			source:      strings.NewReader("GET /index.html HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n"),
-			wantMethod:  "GET",
-			wantTarget:  "/index.html",
-			wantVersion: "HTTP/1.1",
+			desc:     "http body",
+			source:   strings.NewReader(requestBase + "<html><body><p>Hello</p></body></html>"),
+			wantBody: []byte("<html><body><p>Hello</p></body></html>"),
 		},
 	}
 	for _, tC := range testCases {
@@ -89,14 +138,20 @@ func TestReadRequestLine(t *testing.T) {
 			if err != nil {
 				t.Fatalf("wanted no errors but read(io.Reader) returned error: %v", err)
 			}
-			if tC.wantMethod != req.Method {
-				t.Errorf("invalid method, wanted: '%s', got: '%s'", tC.wantMethod, req.Method)
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("could not read request body: %v", err)
 			}
-			if tC.wantTarget != req.Target {
-				t.Errorf("invalid target, wanted: '%s', got: '%s'", tC.wantTarget, req.Target)
+
+			if len(tC.wantBody) != len(body) {
+				t.Fatalf("invalid request body length, wanted: %d, got: %d", len(tC.wantBody), len(body))
 			}
-			if tC.wantVersion != req.Version {
-				t.Errorf("invalid version, wanted: '%s', got: '%s'", tC.wantVersion, req.Version)
+
+			for i, b := range tC.wantBody {
+				if b != body[i] {
+					t.Errorf("invalid request body value, wanted body[%d]=%d but got body[%d]=%d", i, b, i, body[i])
+				}
 			}
 		})
 	}
