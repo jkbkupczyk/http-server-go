@@ -101,6 +101,7 @@ func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 
 func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	fileName, _ := strings.CutPrefix(req.Target, "/files/")
+	fmt.Printf("fileName: '%s'\n", fileName)
 
 	sb := new(strings.Builder)
 	_, err := io.Copy(sb, req.Body)
@@ -109,6 +110,7 @@ func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 		res.WriteStr("Could not read input: " + err.Error())
 		return
 	}
+	fmt.Printf("input: '%s'\n", sb.String())
 
 	f, err := os.Create(filepath.Join(cfg.FileDir, fileName))
 	if err != nil {

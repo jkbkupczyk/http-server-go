@@ -32,9 +32,9 @@ func TestCreateFileHandler(t *testing.T) {
 			fileContents: " \t",
 		},
 		{
-			desc:         "should create file",
-			fileName:     "number",
-			fileContents: "12345",
+			desc:         "should create file with contents",
+			fileName:     "hello",
+			fileContents: "Hello, World!",
 		},
 	}
 	for _, tC := range testCases {
