@@ -35,13 +35,19 @@ func filesHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 }
 
 func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
-	fileName, _ := strings.CutPrefix(req.Target, "/files/")
+	fileName, ok := strings.CutPrefix(req.Target, "/files/")
+	if fileName == "" || !ok {
+		res.Status = StatusBadRequest
+		return
+	}
+
 	f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			res.Status = StatusNotFound
 			return
 		}
+		res.Status = StatusInternalServerError
 		resp := fmt.Sprintf("Could not load file: %s", err.Error())
 		res.WriteStr(resp)
 		return
@@ -61,7 +67,7 @@ func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 
 func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	fileName, _ := strings.CutPrefix(req.Target, "/files/")
-	
+
 	if err := os.MkdirAll(cfg.FileDir, os.ModePerm); err != nil {
 		fmt.Printf("Could not create dirs: %s\n", err.Error())
 		res.Status = StatusInternalServerError

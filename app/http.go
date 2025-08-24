@@ -41,6 +41,7 @@ var (
 	ErrCannotReadHeaders     = errors.New("http: cannot read headers")
 	ErrUnsupportedMethod     = errors.New("http: unsupported method")
 	ErrUnsupportedVersion    = errors.New("http: unsupported version")
+	ErrInvalidContentLength  = errors.New("http: invalid content length value")
 )
 
 type HttpHeaders map[string]string
@@ -138,7 +139,16 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	req.Headers = headers
 
 	// Body
-	req.Body = br
+	cl, ok := req.Headers[HeaderContentLength]
+	if ok {
+		value, err := strconv.Atoi(cl)
+		if err != nil {
+			return nil, errors.Join(ErrInvalidContentLength, err)
+		}
+		req.Body = io.LimitReader(br, int64(value))
+	} else {
+		req.Body = io.NopCloser(br)
+	}
 
 	return req, nil
 }
