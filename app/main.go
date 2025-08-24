@@ -39,6 +39,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Printf("Started server on port :%d\n", port)
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -52,21 +54,17 @@ func main() {
 func handleConn(cfg Config, conn net.Conn) {
 	defer conn.Close()
 
-	fmt.Printf("before read\n")
 	req, err := Read(conn)
 	if err != nil {
 		fmt.Println("Error reading request: ", err.Error())
 		return
 	}
-	fmt.Printf("after read: %+v\n", req)
 
-	fmt.Printf("before handle\n")
 	res := newCleanResponse()
 	if err := Handle(cfg, res, req); err != nil {
 		fmt.Println("Error handling request: ", err.Error())
 		return
 	}
-	fmt.Printf("after handle: res: %+v, req: %+v\n", res, req)
 
 	n, err := Write(conn, res)
 	if err != nil {
@@ -101,19 +99,19 @@ func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 
 func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	fileName, _ := strings.CutPrefix(req.Target, "/files/")
-	fmt.Printf("fileName: '%s'\n", fileName)
 
 	sb := new(strings.Builder)
 	_, err := io.Copy(sb, req.Body)
 	if err != nil {
+		fmt.Printf("Could not read input: %s\n", err.Error())
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not read input: " + err.Error())
 		return
 	}
-	fmt.Printf("input: '%s'\n", sb.String())
 
 	f, err := os.Create(filepath.Join(cfg.FileDir, fileName))
 	if err != nil {
+		fmt.Printf("Could not create file: %s\n", err.Error())
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not create file: " + err.Error())
 		return
@@ -122,6 +120,7 @@ func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 
 	_, err = f.WriteString(sb.String())
 	if err != nil {
+		fmt.Printf("Could not write data to file: %s\n", err.Error())
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not write data to file: " + err.Error())
 		return
