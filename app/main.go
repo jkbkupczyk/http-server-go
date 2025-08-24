@@ -1,13 +1,10 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -72,84 +69,22 @@ func handleConn(cfg Config, conn net.Conn) {
 		return
 	}
 
+	fmt.Printf("Handled request: %s %s (bytes written %d)\n", req.Method, req.Target, n)
+
 	return
 }
 
 func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 	if req.Target == "/" {
-		res.Status = StatusOK
+		rootHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/echo/") {
-		res.Status = StatusOK
-		echo, _ := strings.CutPrefix(req.Target, "/echo/")
-		res.WriteStr(echo)
+		echoHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/user-agent") {
-		res.Status = StatusOK
-		res.WriteStr(req.Headers["User-Agent"])
+		userAgentHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/files/") {
-		if req.Method == MethodPost {
-			createFileHandler(cfg, res, req)
-		} else {
-			readFileHandler(cfg, res, req)
-		}
+		filesHandler(cfg, res, req)
 	} else {
 		res.Status = StatusNotFound
 	}
 	return nil
-}
-
-func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
-	fileName, _ := strings.CutPrefix(req.Target, "/files/")
-
-	sb := new(strings.Builder)
-	_, err := io.Copy(sb, req.Body)
-	if err != nil {
-		fmt.Printf("Could not read input: %s\n", err.Error())
-		res.Status = StatusInternalServerError
-		res.WriteStr("Could not read input: " + err.Error())
-		return
-	}
-
-	f, err := os.Create(filepath.Join(cfg.FileDir, fileName))
-	if err != nil {
-		fmt.Printf("Could not create file: %s\n", err.Error())
-		res.Status = StatusInternalServerError
-		res.WriteStr("Could not create file: " + err.Error())
-		return
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(sb.String())
-	if err != nil {
-		fmt.Printf("Could not write data to file: %s\n", err.Error())
-		res.Status = StatusInternalServerError
-		res.WriteStr("Could not write data to file: " + err.Error())
-		return
-	}
-
-	res.Status = StatusCreated
-}
-
-func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
-	res.Status = StatusOK
-	fileName, _ := strings.CutPrefix(req.Target, "/files/")
-	f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			res.Status = StatusNotFound
-			return
-		}
-		resp := fmt.Sprintf("Could not load file: %s", err.Error())
-		res.WriteStr(resp)
-		return
-	}
-
-	res.Body = f
-	res.BodyLength = func() int64 {
-		stat, err := f.Stat()
-		if err != nil {
-			return 0
-		}
-		return stat.Size()
-	}
-	res.Headers[HeaderContentType] = "application/octet-stream"
 }
