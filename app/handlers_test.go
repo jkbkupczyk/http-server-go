@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -8,10 +9,84 @@ import (
 	"testing"
 )
 
+func readerToString(t *testing.T, r io.Reader) string {
+	t.Helper()
+	buf := new(strings.Builder)
+	io.Copy(buf, r)
+	return buf.String()
+}
+
 func prepareTestConfig(t *testing.T) Config {
 	t.Helper()
 	return Config{
 		FileDir: t.TempDir(),
+	}
+}
+
+func TestRootHandler(t *testing.T) {
+	res := &HttpResponse{}
+	req := &HttpRequest{}
+
+	rootHandler(res, req)
+
+	if res.Status != StatusOK {
+		t.Errorf("expected status code to be '200', got: '%d'", res.Status)
+	}
+}
+
+func TestEchoHandler(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		req        *HttpRequest
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			desc: "empty target",
+			req: &HttpRequest{
+				Target: "",
+			},
+			wantStatus: StatusOK,
+			wantBody:   "",
+		},
+		{
+			desc: "echo - empty",
+			req: &HttpRequest{
+				Target: "/echo/",
+			},
+			wantStatus: StatusOK,
+			wantBody:   "",
+		},
+		{
+			desc: "echo - blank",
+			req: &HttpRequest{
+				Target: "/echo/ ",
+			},
+			wantStatus: StatusOK,
+			wantBody:   " ",
+		},
+		{
+			desc: "echo - ok",
+			req: &HttpRequest{
+				Target: "/echo/hello world!",
+			},
+			wantStatus: StatusOK,
+			wantBody:   "hello world!",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			res := &HttpResponse{}
+
+			echoHandler(res, tC.req)
+
+			if res.Status != StatusOK {
+				t.Errorf("invalid http status returned, wanted: '200', got: %d", res.Status)
+			}
+			if gotBody := readerToString(t, res.Body); gotBody != tC.wantBody {
+				t.Errorf("invalid body returned, wanted: '%s', got: '%s'", tC.wantBody, gotBody)
+			}
+		})
 	}
 }
 
