@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -48,10 +49,10 @@ func main() {
 	}
 }
 
-func handleConn(cfg Config, conn net.Conn) {
-	defer conn.Close()
+func handleConn(cfg Config, stream io.ReadWriteCloser) {
+	defer stream.Close()
 
-	req, err := Read(conn)
+	req, err := Read(stream)
 	if err != nil {
 		fmt.Println("Error reading request: ", err.Error())
 		return
@@ -63,15 +64,18 @@ func handleConn(cfg Config, conn net.Conn) {
 		return
 	}
 
-	n, err := Write(conn, res)
+	acceptEncoding := req.Headers[HeaderAcceptEncoding]
+	if strings.Contains(acceptEncoding, EncodingGzip) {
+		res.Headers[HeaderContentEncoding] = acceptEncoding
+	}
+
+	n, err := Write(stream, res)
 	if err != nil {
 		fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
 		return
 	}
 
 	fmt.Printf("Handled request: %s %s (bytes written %d)\n", req.Method, req.Target, n)
-
-	return
 }
 
 func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {

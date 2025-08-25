@@ -33,7 +33,11 @@ const (
 const (
 	HeaderContentLength = "Content-Length"
 	HeaderContentType   = "Content-Type"
+	HeaderAcceptEncoding = "Accept-Encoding"
+	HeaderContentEncoding = "Content-Encoding"
 )
+
+const EncodingGzip = "gzip"
 
 var (
 	ErrCannotReadRequestLine = errors.New("http: cannot read request line")
