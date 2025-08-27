@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -64,9 +65,9 @@ func handleConn(cfg Config, stream io.ReadWriteCloser) {
 		return
 	}
 
-	acceptEncoding := req.Headers[HeaderAcceptEncoding]
-	if strings.Contains(acceptEncoding, EncodingGzip) {
-		res.Headers[HeaderContentEncoding] = acceptEncoding
+	acceptEncoding := parseAcceptEncodings(req.Headers[HeaderAcceptEncoding])
+	if slices.Contains(acceptEncoding, EncodingGzip) {
+		res.Headers[HeaderContentEncoding] = EncodingGzip
 	}
 
 	n, err := Write(stream, res)
@@ -91,4 +92,17 @@ func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
 		res.Status = StatusNotFound
 	}
 	return nil
+}
+
+func parseAcceptEncodings(acceptEncHeader string) []string {
+	if acceptEncHeader == "" {
+		return []string{}
+	}
+
+	encodings := make([]string, 0)
+	for _, v := range strings.Split(acceptEncHeader, ",") {
+		encodings = append(encodings, strings.ToLower(strings.TrimSpace(v)))
+	}
+
+	return encodings
 }
