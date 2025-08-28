@@ -55,13 +55,6 @@ func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 
 	res.Status = StatusOK
 	res.Body = f
-	res.BodyLength = func() int64 {
-		stat, err := f.Stat()
-		if err != nil {
-			return 0
-		}
-		return stat.Size()
-	}
 	res.Headers[HeaderContentType] = "application/octet-stream"
 }
 

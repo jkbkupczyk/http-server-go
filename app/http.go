@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
@@ -31,9 +33,9 @@ const (
 )
 
 const (
-	HeaderContentLength = "Content-Length"
-	HeaderContentType   = "Content-Type"
-	HeaderAcceptEncoding = "Accept-Encoding"
+	HeaderContentLength   = "Content-Length"
+	HeaderContentType     = "Content-Type"
+	HeaderAcceptEncoding  = "Accept-Encoding"
 	HeaderContentEncoding = "Content-Encoding"
 )
 
@@ -58,14 +60,11 @@ type HttpRequest struct {
 	Body    io.Reader
 }
 
-type BodyLengthFunc func() int64
-
 type HttpResponse struct {
-	Version    string
-	Status     int
-	Headers    HttpHeaders
-	Body       io.Reader
-	BodyLength BodyLengthFunc
+	Version string
+	Status  int
+	Headers HttpHeaders
+	Body    io.Reader
 }
 
 func (req HttpRequest) GetContentLength() int64 {
@@ -84,7 +83,6 @@ func (req HttpRequest) GetContentLength() int64 {
 
 func (r *HttpResponse) WriteStr(str string) *HttpResponse {
 	r.Body = strings.NewReader(str)
-	r.BodyLength = func() int64 { return int64(len(str)) }
 	if r.Headers == nil {
 		r.Headers = HttpHeaders{}
 	}
@@ -98,7 +96,7 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	req := &HttpRequest{}
 
 	line, err := br.ReadString('\n')
-	if err != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, errors.Join(ErrCannotReadRequestLine, err)
 	}
 	line = strings.TrimRight(line, "\r\n")
@@ -125,7 +123,7 @@ func Read(r io.Reader) (*HttpRequest, error) {
 	headers := make(map[string]string)
 	for {
 		hdrLine, err := br.ReadString('\n')
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, errors.Join(ErrCannotReadHeaders, err)
 		}
 
@@ -168,11 +166,25 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 		return total, err
 	}
 
+	// in stage 11 (Gzip Compression) CodeCrafters require settings Content-Length
+	// header set to the size of the compressed body, which defeats whole purpose of
+	// streaming response via Readers/Writers
+	var body []byte
+	if res.Body != nil {
+		if res.Headers[HeaderContentEncoding] == EncodingGzip {
+			buff, err := getGzippedBody(res.Body)
+			if err != nil {
+				return total, err
+			}
+			body = buff
+		} else {
+			body, err = io.ReadAll(res.Body)
+		}
+	}
+
 	// Headers
 	if res.Headers != nil {
-		if res.BodyLength != nil {
-			res.Headers[HeaderContentLength] = strconv.FormatInt(res.BodyLength(), 10)
-		}
+		res.Headers[HeaderContentLength] = strconv.Itoa(len(body))
 		// Write headers in alphabetical order
 		for _, k := range slices.Sorted(maps.Keys(res.Headers)) {
 			nn, err := fmt.Fprintf(bw, "%s: %s\r\n", k, res.Headers[k])
@@ -190,15 +202,30 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 	}
 
 	// Body
-	if res.Body != nil {
-		nn, err := io.Copy(bw, res.Body)
-		total += nn
-		if err != nil {
-			return total, err
-		}
+	nn, err := bw.Write(body)
+	total += int64(nn)
+	if err != nil {
+		return total, err
 	}
 
 	return total, bw.Flush()
+}
+
+func getGzippedBody(responseBody io.Reader) ([]byte, error) {
+	var buff bytes.Buffer
+	var err error
+
+	gzipWriter := gzip.NewWriter(&buff)
+	defer gzipWriter.Close()
+
+	if _, err = io.Copy(gzipWriter, responseBody); err != nil {
+		return nil, err
+	}
+	if err = gzipWriter.Flush(); err != nil {
+		return nil, err
+	}
+
+	return buff.Bytes(), nil
 }
 
 func statusString(code int) string {

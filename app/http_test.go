@@ -184,7 +184,7 @@ func TestWrite(t *testing.T) {
 				Headers: map[string]string{"Content-Type": "text/html; charset=utf-8"},
 				Body:    strings.NewReader("Hello, World!"),
 			},
-			wantValue: "HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=utf-8\r\n\r\nHello, World!",
+			wantValue: "HTTP/1.1 404 Not Found\r\nContent-Length: 13\r\nContent-Type: text/html; charset=utf-8\r\n\r\nHello, World!",
 		},
 		{
 			desc: "write ok response - stage 1",
@@ -247,9 +247,6 @@ func TestResponseWriteStr(t *testing.T) {
 			if res.Headers["Content-Type"] != "text/plain" {
 				t.Errorf("missing or invalid 'Content-Type' header value, wanted: 'text/plain', got: '%s'", res.Headers["Content-Type"])
 			}
-			if l := res.BodyLength(); l != tC.wantBodyLen {
-				t.Errorf("invalid body length ('Content-Length'), wanted: '%d', got: '%d'", tC.wantBodyLen, l)
-			}
 			sb := new(strings.Builder)
 			io.Copy(sb, res.Body)
 			if s := sb.String(); s != tC.wantBody {
@@ -273,8 +270,5 @@ func TestNewCleanResponse(t *testing.T) {
 	}
 	if cr.Body != nil {
 		t.Errorf("wanted Body to be nil but got non-nil value")
-	}
-	if cr.BodyLength != nil {
-		t.Errorf("wanted BodyLength to be nil but got non-nil value")
 	}
 }
