@@ -216,12 +216,16 @@ func getGzippedBody(responseBody io.Reader) ([]byte, error) {
 	var err error
 
 	gzipWriter := gzip.NewWriter(&buff)
-	defer gzipWriter.Close()
 
 	if _, err = io.Copy(gzipWriter, responseBody); err != nil {
 		return nil, err
 	}
-	if err = gzipWriter.Flush(); err != nil {
+
+	if gzipWriter.Flush() != nil {
+		return nil, err
+	}
+
+	if gzipWriter.Close() != nil {
 		return nil, err
 	}
 
