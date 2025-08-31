@@ -75,6 +75,9 @@ func handleConn(cfg Config, conn io.ReadWriteCloser) {
 		if slices.Contains(acceptEncoding, EncodingGzip) {
 			res.Headers[HeaderContentEncoding] = EncodingGzip
 		}
+		if closeConnection {
+			res.Headers[HeaderConnection] = "close"
+		}
 
 		n, err := Write(conn, res)
 		if err != nil {
