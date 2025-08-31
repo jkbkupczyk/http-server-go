@@ -37,6 +37,7 @@ const (
 	HeaderContentType     = "Content-Type"
 	HeaderAcceptEncoding  = "Accept-Encoding"
 	HeaderContentEncoding = "Content-Encoding"
+	HeaderConnection      = "Connection"
 )
 
 const EncodingGzip = "gzip"
@@ -166,9 +167,6 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 		return total, err
 	}
 
-	// in stage 11 (Gzip Compression) CodeCrafters require settings Content-Length
-	// header set to the size of the compressed body, which defeats whole purpose of
-	// streaming response via Readers/Writers
 	var body []byte
 	if res.Body != nil {
 		if res.Headers[HeaderContentEncoding] == EncodingGzip {
@@ -213,19 +211,17 @@ func Write(w io.Writer, res *HttpResponse) (int64, error) {
 
 func getGzippedBody(responseBody io.Reader) ([]byte, error) {
 	var buff bytes.Buffer
-	var err error
-
 	gzipWriter := gzip.NewWriter(&buff)
 
-	if _, err = io.Copy(gzipWriter, responseBody); err != nil {
+	if _, err := io.Copy(gzipWriter, responseBody); err != nil {
 		return nil, err
 	}
 
-	if gzipWriter.Flush() != nil {
+	if err := gzipWriter.Flush(); err != nil {
 		return nil, err
 	}
 
-	if gzipWriter.Close() != nil {
+	if err := gzipWriter.Close(); err != nil {
 		return nil, err
 	}
 

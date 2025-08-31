@@ -50,33 +50,44 @@ func main() {
 	}
 }
 
-func handleConn(cfg Config, stream io.ReadWriteCloser) {
-	defer stream.Close()
+func handleConn(cfg Config, conn io.ReadWriteCloser) {
+	defer conn.Close()
 
-	req, err := Read(stream)
-	if err != nil {
-		fmt.Println("Error reading request: ", err.Error())
-		return
+	for {
+		req, err := Read(conn)
+		if err != nil {
+			fmt.Println("Error reading request: ", err.Error())
+			return
+		}
+
+		var closeConnection bool
+		if req.Headers[HeaderConnection] == "close" {
+			closeConnection = true
+		}
+
+		res := newCleanResponse()
+		if err := Handle(cfg, res, req); err != nil {
+			fmt.Println("Error handling request: ", err.Error())
+			return
+		}
+
+		acceptEncoding := parseAcceptEncodings(req.Headers[HeaderAcceptEncoding])
+		if slices.Contains(acceptEncoding, EncodingGzip) {
+			res.Headers[HeaderContentEncoding] = EncodingGzip
+		}
+
+		n, err := Write(conn, res)
+		if err != nil {
+			fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
+			return
+		}
+
+		fmt.Printf("Handled request: %s %s (bytes written %d)\n", req.Method, req.Target, n)
+
+		if closeConnection {
+			break
+		}
 	}
-
-	res := newCleanResponse()
-	if err := Handle(cfg, res, req); err != nil {
-		fmt.Println("Error handling request: ", err.Error())
-		return
-	}
-
-	acceptEncoding := parseAcceptEncodings(req.Headers[HeaderAcceptEncoding])
-	if slices.Contains(acceptEncoding, EncodingGzip) {
-		res.Headers[HeaderContentEncoding] = EncodingGzip
-	}
-
-	n, err := Write(stream, res)
-	if err != nil {
-		fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
-		return
-	}
-
-	fmt.Printf("Handled request: %s %s (bytes written %d)\n", req.Method, req.Target, n)
 }
 
 func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
