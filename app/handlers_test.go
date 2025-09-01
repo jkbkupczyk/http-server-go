@@ -1,13 +1,25 @@
 package main
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func newMockApp(t *testing.T) *app {
+	t.Helper()
+	return &app{
+		cfg: Config{
+			FileDir: t.TempDir(),
+		},
+		log: slog.New(NewNoopHandler()),
+	}
+}
 
 func readerToString(t *testing.T, r io.Reader) string {
 	t.Helper()
@@ -16,18 +28,12 @@ func readerToString(t *testing.T, r io.Reader) string {
 	return buf.String()
 }
 
-func prepareTestConfig(t *testing.T) Config {
-	t.Helper()
-	return Config{
-		FileDir: t.TempDir(),
-	}
-}
-
 func TestRootHandler(t *testing.T) {
+	app := newMockApp(t)
 	res := &HttpResponse{}
 	req := &HttpRequest{}
 
-	rootHandler(res, req)
+	app.rootHandler(res, req)
 
 	if res.Status != StatusOK {
 		t.Errorf("expected status code to be '200', got: '%d'", res.Status)
@@ -76,9 +82,10 @@ func TestEchoHandler(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
+			app := newMockApp(t)
 			res := &HttpResponse{}
 
-			echoHandler(res, tC.req)
+			app.echoHandler(res, tC.req)
 
 			if res.Status != StatusOK {
 				t.Errorf("invalid http status returned, wanted: '200', got: %d", res.Status)
@@ -114,7 +121,7 @@ func TestCreateFileHandler(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			cfg := prepareTestConfig(t)
+			app := newMockApp(t)
 			res := newCleanResponse()
 			req := &HttpRequest{
 				Method:  MethodPost,
@@ -130,7 +137,7 @@ func TestCreateFileHandler(t *testing.T) {
 				Body: strings.NewReader(tC.fileContents),
 			}
 
-			createFileHandler(cfg, res, req)
+			app.createFileHandler(res, req)
 
 			if res.Version != "HTTP/1.1" {
 				t.Errorf("invalid http version returned, wanted: 'HTTP/1.1', got: %s", res.Version)
@@ -142,7 +149,7 @@ func TestCreateFileHandler(t *testing.T) {
 				t.Errorf("wanted headers to be not nil")
 			}
 
-			fPath := filepath.Join(cfg.FileDir, tC.fileName)
+			fPath := filepath.Join(app.cfg.FileDir, tC.fileName)
 			buff, err := os.ReadFile(fPath)
 			if err != nil {
 				t.Fatalf("could not read file: %v", err)
@@ -152,4 +159,27 @@ func TestCreateFileHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+type noopLogger struct {
+}
+
+func NewNoopHandler() slog.Handler {
+	return &noopLogger{}
+}
+
+func (noopLogger) Enabled(context.Context, slog.Level) bool {
+	return false
+}
+
+func (noopLogger) Handle(context.Context, slog.Record) error {
+	return nil
+}
+
+func (h noopLogger) WithAttrs([]slog.Attr) slog.Handler {
+	return &noopLogger{}
+}
+
+func (h noopLogger) WithGroup(string) slog.Handler {
+	return &noopLogger{}
 }

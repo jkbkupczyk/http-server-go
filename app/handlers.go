@@ -5,43 +5,48 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-func rootHandler(res *HttpResponse, _ *HttpRequest) {
+func (a *app) notFoundHandler(res *HttpResponse, _ *HttpRequest) {
+	res.Status = StatusNotFound
+}
+
+func (a *app) rootHandler(res *HttpResponse, _ *HttpRequest) {
 	res.Status = StatusOK
 }
 
-func echoHandler(res *HttpResponse, req *HttpRequest) {
+func (a *app) echoHandler(res *HttpResponse, req *HttpRequest) {
 	res.Status = StatusOK
 	echo, _ := strings.CutPrefix(req.Target, "/echo/")
 	res.WriteStr(echo)
 }
 
-func userAgentHandler(res *HttpResponse, req *HttpRequest) {
+func (a *app) userAgentHandler(res *HttpResponse, req *HttpRequest) {
 	res.Status = StatusOK
 	res.WriteStr(req.Headers["User-Agent"])
 }
 
-func filesHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+func (a *app) filesHandler(res *HttpResponse, req *HttpRequest) {
 	switch req.Method {
 	case MethodGet:
-		readFileHandler(cfg, res, req)
+		a.readFileHandler(res, req)
 	case MethodPost:
-		createFileHandler(cfg, res, req)
+		a.createFileHandler(res, req)
 	}
 }
 
-func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+func (a *app) readFileHandler(res *HttpResponse, req *HttpRequest) {
 	fileName, ok := strings.CutPrefix(req.Target, "/files/")
 	if fileName == "" || !ok {
 		res.Status = StatusBadRequest
 		return
 	}
 
-	f, err := os.Open(filepath.Join(cfg.FileDir, fileName))
+	f, err := os.Open(filepath.Join(a.cfg.FileDir, fileName))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			res.Status = StatusNotFound
@@ -58,20 +63,20 @@ func readFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	res.Headers[HeaderContentType] = "application/octet-stream"
 }
 
-func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
+func (a *app) createFileHandler(res *HttpResponse, req *HttpRequest) {
 	fileName, _ := strings.CutPrefix(req.Target, "/files/")
 
-	if err := os.MkdirAll(cfg.FileDir, os.ModePerm); err != nil {
-		fmt.Printf("Could not create dirs: %s\n", err.Error())
+	if err := os.MkdirAll(a.cfg.FileDir, os.ModePerm); err != nil {
+		a.log.Warn("could not create dirs", slog.String("error", err.Error()))
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not create dirs: " + err.Error())
 		return
 	}
 
-	filePath := filepath.Join(cfg.FileDir, fileName)
+	filePath := filepath.Join(a.cfg.FileDir, fileName)
 	f, err := os.Create(filePath)
 	if err != nil {
-		fmt.Printf("Could not create file: %s\n", err.Error())
+		a.log.Warn("could not create file", slog.String("fileName", fileName), slog.String("error", err.Error()))
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not create file: " + err.Error())
 		return
@@ -81,14 +86,14 @@ func createFileHandler(cfg Config, res *HttpResponse, req *HttpRequest) {
 	w := bufio.NewWriter(f)
 	n, err := io.Copy(w, req.Body)
 	if err != nil {
-		fmt.Printf("Could not write data to file: %s\n", err.Error())
+		a.log.Warn("could not write data to file", slog.String("fileName", fileName), slog.String("error", err.Error()))
 		res.Status = StatusInternalServerError
 		res.WriteStr("Could not write data to file: " + err.Error())
 		return
 	}
 	w.Flush()
 
-	fmt.Printf("Written %d bytes to file %s\n", n, fileName)
+	a.log.Info("written file contents", slog.String("fileName", fileName), slog.Int64("bytes", n))
 
 	res.Status = StatusCreated
 }

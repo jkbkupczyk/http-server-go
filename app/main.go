@@ -3,10 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
-	"net"
-	"os"
-	"slices"
+	"log/slog"
 	"strings"
 )
 
@@ -25,98 +22,48 @@ func parseConfig() Config {
 	return cfg
 }
 
+type app struct {
+	cfg Config
+	log *slog.Logger
+}
+
 func main() {
-	fmt.Println("Logs from your program will appear here!")
+	logger := slog.Default()
 	port := 4221
 
 	cfg := parseConfig()
-	fmt.Printf("Parsed config: %s\n", cfg.Debug())
+	logger.Info("parsed config", slog.String("cfg", cfg.Debug()))
 
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
+
+	app := app{
+		cfg: cfg,
+		log: logger,
+	}
+
+	server, err := NewServerFromConfig(addr, logger, app.Handle)
 	if err != nil {
-		fmt.Printf("Failed to bind to port %d\n", port)
-		os.Exit(1)
+		logger.Error("failed to create HTTP server", slog.String("err", err.Error()))
+		return
 	}
 
-	fmt.Printf("Started server on port :%d\n", port)
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			continue
-		}
-		go handleConn(cfg, conn)
+	logger.Info("starting server", slog.String("address", addr))
+	if err := server.Start(); err != nil {
+		logger.Error("could not start HTTP server", slog.String("err", err.Error()))
+		return
 	}
 }
 
-func handleConn(cfg Config, conn io.ReadWriteCloser) {
-	defer conn.Close()
-
-	for {
-		req, err := Read(conn)
-		if err != nil {
-			fmt.Println("Error reading request: ", err.Error())
-			return
-		}
-
-		var closeConnection bool
-		if req.Headers[HeaderConnection] == "close" {
-			closeConnection = true
-		}
-
-		res := newCleanResponse()
-		if err := Handle(cfg, res, req); err != nil {
-			fmt.Println("Error handling request: ", err.Error())
-			return
-		}
-
-		acceptEncoding := parseAcceptEncodings(req.Headers[HeaderAcceptEncoding])
-		if slices.Contains(acceptEncoding, EncodingGzip) {
-			res.Headers[HeaderContentEncoding] = EncodingGzip
-		}
-		if closeConnection {
-			res.Headers[HeaderConnection] = "close"
-		}
-
-		n, err := Write(conn, res)
-		if err != nil {
-			fmt.Printf("Failed to write response: %v (bytes written %d)\n", err, n)
-			return
-		}
-
-		fmt.Printf("Handled request: %s %s (bytes written %d)\n", req.Method, req.Target, n)
-
-		if closeConnection {
-			break
-		}
-	}
-}
-
-func Handle(cfg Config, res *HttpResponse, req *HttpRequest) error {
+func (a *app) Handle(req *HttpRequest, res *HttpResponse) {
 	if req.Target == "/" {
-		rootHandler(res, req)
+		a.rootHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/echo/") {
-		echoHandler(res, req)
+		a.echoHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/user-agent") {
-		userAgentHandler(res, req)
+		a.userAgentHandler(res, req)
 	} else if strings.HasPrefix(req.Target, "/files/") {
-		filesHandler(cfg, res, req)
+		a.filesHandler(res, req)
 	} else {
-		res.Status = StatusNotFound
+		a.notFoundHandler(res, req)
 	}
-	return nil
-}
-
-func parseAcceptEncodings(acceptEncHeader string) []string {
-	if acceptEncHeader == "" {
-		return []string{}
-	}
-
-	encodings := make([]string, 0)
-	for _, v := range strings.Split(acceptEncHeader, ",") {
-		encodings = append(encodings, strings.ToLower(strings.TrimSpace(v)))
-	}
-
-	return encodings
 }
