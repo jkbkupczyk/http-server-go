@@ -57,6 +57,7 @@ func (a *app) readFileHandler(res *HttpResponse, req *HttpRequest) {
 		res.WriteStr(resp)
 		return
 	}
+	defer f.Close()
 
 	res.Status = StatusOK
 	res.Body = f

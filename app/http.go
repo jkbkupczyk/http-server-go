@@ -68,20 +68,6 @@ type HttpResponse struct {
 	Body    io.Reader
 }
 
-func (req HttpRequest) GetContentLength() int64 {
-	cl, ok := req.Headers[HeaderContentLength]
-	if !ok {
-		return 0
-	}
-
-	contentLen, err := strconv.ParseInt(cl, 10, 64)
-	if err != nil {
-		return 0
-	}
-
-	return contentLen
-}
-
 func (r *HttpResponse) WriteStr(str string) *HttpResponse {
 	r.Body = strings.NewReader(str)
 	if r.Headers == nil {
@@ -150,7 +136,7 @@ func Read(r io.Reader) (*HttpRequest, error) {
 		}
 		req.Body = io.LimitReader(br, int64(value))
 	} else {
-		req.Body = io.NopCloser(br)
+		req.Body = br
 	}
 
 	return req, nil
